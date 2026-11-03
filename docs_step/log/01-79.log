@@ -1,0 +1,98 @@
+
+# 单次跑通
+(base) ubuntu@ubuntu:/mnt/sata/L8W/03-github/cutlass$ CUDA_VISIBLE_DEVICES=00000000:5E:00.0 \
+>   ./build-sm120-cuda129/examples/79_blackwell_geforce_gemm/79a_blackwell_geforce_nvfp4_bf16_gemm \
+>   --m=2048 \
+>   --n=2048 \
+>   --k=2048 \
+>   --iterations=100
+  Disposition: Passed
+  Problem Size: 2048x2048x2048
+  Avg runtime: 0.0338998 ms
+  GFLOPS: 506783
+
+# 四个样例对比
+
+(base) ubuntu@ubuntu:/mnt/sata/L8W/03-github/cutlass$ for size in 2048; do
+>   # 79a：NVFP4 -> BF16
+>   "$example_dir/79a_blackwell_geforce_nvfp4_bf16_gemm" \
+>     --m="$size" --n="$size" --k="$size" \
+>     --alpha=1 --beta=0 --iterations=100
+> 
+>   # 79b：NVFP4 -> NVFP4
+>   "$example_dir/79b_blackwell_geforce_nvfp4_nvfp4_gemm" \
+>     --m="$size" --n="$size" --k="$size" \
+>     --alpha=1 --beta=0 --iterations=100
+> 
+>   # 79c：MXFP8 × MXFP6 -> BF16
+>   "$example_dir/79c_blackwell_geforce_mixed_mxfp8_mxfp6_bf16_gemm" \
+>     --m="$size" --n="$size" --k="$size" \
+>     --alpha=1 --beta=0 --iterations=100
+> 
+>   # 79d：分组 NVFP4 GEMM，每组均使用当前尺寸
+>   "$example_dir/79d_blackwell_geforce_nvfp4_grouped_gemm" \
+>     --m="$size" --n="$size" --k="$size" --groups=2 \
+>     --alpha=1 --beta=0 --iterations=100
+> done
+  Disposition: Passed
+  Problem Size: 2048x2048x2048
+  Avg runtime: 0.0338118 ms
+  GFLOPS: 508102
+
+  Disposition: Passed
+  Problem Size: 2048x2048x2048
+  Avg runtime: 0.0359309 ms
+  GFLOPS: 478137
+
+  Disposition: Passed
+  Problem Size: 2048x2048x2048
+  Avg runtime: 0.058472 ms
+  GFLOPS: 293814
+
+Running kernel with Cooperative kernel schedule:
+  Problem Sizes, Alpha, Beta 
+    (2048,2048,2048), 1, 0
+    (2048,2048,2048), 1, 0
+  Groups      : 2
+  Host-side verification is now running - may be very slow for large cases.
+  Disposition: Passed
+  Avg runtime : 0.0769738 ms
+  TFLOPS      : 446.382
+Running kernel with Pingpong kernel schedule:
+  Problem Sizes, Alpha, Beta 
+    (2048,2048,2048), 1, 0
+    (2048,2048,2048), 1, 0
+  Groups      : 2
+  Host-side verification is now running - may be very slow for large cases.
+  Disposition: Passed
+  Avg runtime : 0.0626496 ms
+  TFLOPS      : 548.443
+
+# tc pipe利用率
+(base) ubuntu@ubuntu:/mnt/sata/L8W/03-github/cutlass$ sudo \
+> CUDA_VISIBLE_DEVICES=00000000:5E:00.0 \
+> /usr/local/cuda-12.9/bin/ncu \
+>   --launch-skip 1 \
+>   --launch-count 1 \
+>   --metrics sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_elapsed \
+>   ./build-sm120-cuda129/examples/79_blackwell_geforce_gemm/79a_blackwell_geforce_nvfp4_bf16_gemm \
+>   --m=2048 \
+>   --n=2048 \
+>   --k=2048 \
+>   --iterations=10
+[sudo] password for ubuntu: 
+==PROF== Connected to process 1746174 (/mnt/sata/L8W/03-github/cutlass/build-sm120-cuda129/examples/79_blackwell_geforce_gemm/79a_blackwell_geforce_nvfp4_bf16_gemm)
+  Disposition: Passed
+==PROF== Profiling "device_kernel" - 0 (1/1): 0%....50%....100% - 1 pass
+  Problem Size: 2048x2048x2048
+  Avg runtime: 87.3001 ms
+  GFLOPS: 196.791
+==PROF== Disconnected from process 1746174
+[1746174] 79a_blackwell_geforce_nvfp4_bf16_gemm@127.0.0.1
+  void device_kernel<GemmUniversal<tuple<int, int, int, int>, CollectiveMma<MainloopSm120TmaWarpSpecializedBlockScaled<4, 3, tuple<C<1>, C<1>, C<1>>, KernelTmaWarpSpecializedCooperativeBlockScaledSm120<3>>, tuple<C<128>, C<128>, C<128>>, tuple<float_e2m1_t, float_ue4m3_t>, tuple<tuple<long, C<1>, long>, Layout<tuple<tuple<tuple<C<32>, C<4>>, int>, tuple<tuple<C<16>, C<4>>, int>, tuple<C<1>, int>>, tuple<tuple<tuple<C<16>, C<4>>, int>, tuple<tuple<C<0>, C<1>>, C<512>>, tuple<C<0>, int>>>>, tuple<float_e2m1_t, float_ue4m3_t>, tuple<tuple<long, C<1>, long>, Layout<tuple<tuple<tuple<C<32>, C<4>>, int>, tuple<tuple<C<16>, C<4>>, int>, tuple<C<1>, int>>, tuple<tuple<tuple<C<16>, C<4>>, int>, tuple<tuple<C<0>, C<1>>, C<512>>, tuple<C<0>, int>>>>, TiledMMA<MMA_Atom<SM120_16x8x64_TN_VS<float_e2m1_t, float_e2m1_t, float, float_ue4m3_t, 16>>, Layout<tuple<C<4>, C<2>, C<1>>, tuple<C<1>, C<4>, C<0>>>, tuple<C<128>, Layout<tuple<C<8>, C<2>, C<2>>, tuple<C<1>, C<16>, C<8>>>, C<64>>>, tuple<SM90_TMA_LOAD, SM90_TMA_LOAD>, tuple<ComposedLayout<Swizzle<2, 4, 3>, smem_ptr_flag_bits<4>, Layout<tuple<C<8>, C<128>>, tuple<C<128>, C<1>>>>, Layout<tuple<tuple<tuple<C<32>, C<4>>, C<1>>, tuple<tuple<C<16>, C<4>>, C<1>, C<2>>>, tuple<tuple<tuple<C<16>, C<4>>, C<512>>, tuple<tuple<C<0>, C<1>>, C<4>, C<512>>>>>, tuple<Copy_Atom<SM75_U32x4_LDSM_N, integer_subbyte<4, 0>>, Copy_Atom<UniversalCopy<float_ue4m3_t, float_ue4m3_t>, float_ue4m3_t>>, identity, tuple<SM90_TMA_LOAD, SM90_TMA_LOAD>, tuple<ComposedLayout<Swizzle<2, 4, 3>, smem_ptr_flag_bits<4>, Layout<tuple<C<8>, C<128>>, tuple<C<128>, C<1>>>>, Layout<tuple<tuple<tuple<C<32>, C<4>>, C<1>>, tuple<tuple<C<16>, C<4>>, C<1>, C<2>>>, tuple<tuple<tuple<C<16>, C<4>>, C<512>>, tuple<tuple<C<0>, C<1>>, C<4>, C<512>>>>>, tuple<Copy_Atom<SM75_U32x4_LDSM_N, integer_subbyte<4, 0>>, Copy_Atom<UniversalCopy<float_ue4m3_t, float_ue4m3_t>, float_ue4m3_t>>, identity>, CollectiveEpilogue<Sm90TmaWarpSpecialized<3, 2, 4, 1, 0>, tuple<C<128>, C<128>, C<128>>, tuple<C<64>, C<32>>, bfloat16_t, tuple<long, C<1>, long>, bfloat16_t, tuple<long, C<1>, long>, FusionCallbacks<Sm120TmaWarpSpecialized<3, 2, 4, 1, 0>, LinearCombination<bfloat16_t, float, bfloat16_t, float, 2>, tuple<C<128>, C<128>, C<128>>, tuple<C<64>, C<32>>, >, SM90_TMA_LOAD, ComposedLayout<Swizzle<2, 4, 3>, smem_ptr_flag_bits<16>, Layout<tuple<C<8>, C<32>>, tuple<C<32>, C<1>>>>, SM75_U32x2_LDSM_N, SM90_TMA_STORE, ComposedLayout<Swizzle<2, 4, 3>, smem_ptr_flag_bits<16>, Layout<tuple<C<8>, C<32>>, tuple<C<32>, C<1>>>>, SM90_U32x2_STSM_N, Copy_Atom<SM90_U32x2_STSM_N, half_t>, void>, void, void>>(Params) (16, 16, 1)x(384, 1, 1), Context 1, Stream 7, Device 0, CC 12.0
+    Section: Command line profiler metrics
+    --------------------------------------------------------------- ----------- ------------
+    Metric Name                                                     Metric Unit Metric Value
+    --------------------------------------------------------------- ----------- ------------
+    sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_elapsed           %        54.56
+    --------------------------------------------------------------- ----------- ------------
